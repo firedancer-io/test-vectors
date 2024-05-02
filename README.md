@@ -5,8 +5,11 @@ Each file is one Protobuf serialized test input.
 
 ## Type mappings
 
-- `instr/inputs/**/*.bin` -> `org.solana.sealevel.v1.InstrContext`
-- `instr/fixtures/**/*.bin` -> `org.solana.sealevel.v1.InstrFixture`
+| Path        | Type                                                                                         |
+|-----------------|-----------------------------------------------------------------------------------------------------|
+|`instr/inputs/**/*.bin` | `org.solana.sealevel.v1.InstrContext`|
+| `instr/fixtures/**/*.bin` | `org.solana.sealevel.v1.InstrFixture` |
+
 
 # Decoding fixtures
 
