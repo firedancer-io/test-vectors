@@ -19,11 +19,6 @@ Each file is one Protobuf serialized test input.
 
 CI will regress against any fixtures in this directory and produce a coverage report on every PR.
 
-# Decoding fixtures
-
-Refer to [solana-conformance](https://github.com/firedancer-io/solana-conformance). Use `create-fixture` with desired inputs to create human-readable fixtures from instruction context messages, using a Solana target to generate instruction effects.
-
 # External links
-[solana-conformance](https://github.com/firedancer-io/solana-conformance)
 
 [solfuzz](https://github.com/firedancer-io/solfuzz)
