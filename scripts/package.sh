@@ -20,6 +20,6 @@ echo "## Fixture archives"
 echo
 echo "| Archive | SHA-256 |"
 echo "| --- | --- |"
-for f in block cost elf_loader instr shred syscall txn vm_serialization; do
+for f in block cost elf_loader gossip instr shred syscall txn vm_serialization; do
   package "$f"
 done
