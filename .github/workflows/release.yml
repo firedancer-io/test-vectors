@@ -1,0 +1,57 @@
+# Publish the fixture directories as release tarballs on every push to main.
+#
+# Each push creates a GitHub release tagged with the full commit SHA, so a
+# consumer that pins a test-vectors commit can download fixtures directly:
+#
+#   https://github.com/firedancer-io/test-vectors/releases/download/<sha>/<dir>.tar.gz
+#
+# Archives are built by scripts/package.sh. The release notes carry the
+# SHA-256 of every archive, and a SHA256SUMS asset is attached alongside them.
+
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: publish fixture tarballs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Check for existing release
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_SHA" >/dev/null 2>&1; then
+            echo "Release $GITHUB_SHA already exists; nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package fixtures
+        if: steps.existing.outputs.exists == 'false'
+        run: |
+          ./scripts/package.sh > notes.md
+          (cd out && sha256sum -- *.tar.gz > SHA256SUMS)
+          cat notes.md
+          du -h out/*
+
+      - name: Publish release
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          subject="${HEAD_COMMIT_MESSAGE%%$'\n'*}"
+          gh release create "$GITHUB_SHA" out/*.tar.gz out/SHA256SUMS \
+            --target "$GITHUB_SHA" \
+            --title "${subject:-${GITHUB_SHA::11}}" \
+            --notes-file notes.md
