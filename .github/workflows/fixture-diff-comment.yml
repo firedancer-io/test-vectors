@@ -1,0 +1,60 @@
+# Post the report from a fixture-diff run as a single PR comment, updated in
+# place on every push.
+#
+# fixture-diff runs fork PR code with a read-only token, so commenting happens
+# here instead, with a write token and the default-branch version of this
+# file. Nothing from the PR is checked out or executed: the artifact is only
+# read as data, and the PR number it carries is checked against the head
+# commit of the run that produced it.
+
+name: fixture-diff-comment
+
+on:
+  workflow_run:
+    workflows: [fixture-diff]
+    types: [completed]
+
+permissions:
+  actions: read
+  pull-requests: write
+
+jobs:
+  comment:
+    name: post fixture diff
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: fixture-diff
+          path: out
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Post comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr=$(< out/pr-number)
+          if [[ ! "$pr" =~ ^[0-9]+$ ]]; then
+            echo "Invalid PR number in artifact." >&2
+            exit 1
+          fi
+          pr_head_sha=$(gh api "repos/$REPO/pulls/$pr" --jq .head.sha)
+          if [[ "$pr_head_sha" != "$RUN_HEAD_SHA" ]]; then
+            echo "PR #$pr head is $pr_head_sha, not $RUN_HEAD_SHA; skipping stale or mismatched run."
+            exit 0
+          fi
+
+          comment_id=$(gh api --paginate "repos/$REPO/issues/$pr/comments" --jq \
+            '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- fixture-diff -->"))) | .id' |
+            head -n1)
+          if [[ -n "$comment_id" ]]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$comment_id" -F body=@out/report.md > /dev/null
+            echo "Updated comment $comment_id on #$pr."
+          else
+            gh api "repos/$REPO/issues/$pr/comments" -F body=@out/report.md > /dev/null
+            echo "Commented on #$pr."
+          fi
