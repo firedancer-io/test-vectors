@@ -1,0 +1,64 @@
+# Decode the .fix fixtures a pull request changes and show them as a text
+# diff, so reviewers don't have to take "Binary files differ" on faith.
+#
+# The diff goes to the job log, the job summary and the `fixture-diff`
+# artifact. This workflow runs untrusted PR code, so it only gets a read-only
+# token; fixture-diff-comment.yml posts the report as a PR comment from the
+# artifact afterwards.
+#
+# Locally, run scripts/setup-fix-diff.sh once to get the same rendering from
+# `git diff`, or scripts/fixture-diff.sh to reproduce this report.
+
+name: fixture-diff
+
+on:
+  pull_request:
+    paths:
+      - '**.fix'
+      - '.gitattributes'
+      - 'scripts/PROTOSOL_VERSION'
+      - 'scripts/fix-textconv.sh'
+      - 'scripts/fixture-diff.sh'
+      - 'scripts/setup-fix-diff.sh'
+      - '.github/workflows/fixture-diff.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diff:
+    name: decode changed fixtures
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # HEAD is the PR merged into its base and HEAD^1 is the base. Fetch only
+      # trees up front; git diff pulls the blobs it needs on demand.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 2
+          filter: blob:none
+          sparse-checkout: scripts
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq --no-install-recommends protobuf-compiler
+          protoc --version
+
+      - name: Decode
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          scripts/setup-fix-diff.sh
+          scripts/fixture-diff.sh HEAD^1 HEAD out
+          cat out/report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "$PR_NUMBER" > out/pr-number
+          cat out/fixture.diff
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: fixture-diff
+          path: out/
+          if-no-files-found: error

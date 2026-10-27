@@ -19,6 +19,16 @@ Each file is one Protobuf serialized test input.
 
 CI will regress against any fixtures in this directory and produce a coverage report on every PR.
 
+# Fixture diffs
+
+`.fix` files are binary protobufs. To render them as text in `git diff`, `git show` and `git log -p`, run this once per clone (needs `protoc`, e.g. `apt install protobuf-compiler`):
+
+```sh
+scripts/setup-fix-diff.sh
+```
+
+Pull requests that change fixtures get the same decoded diff as a comment. Decoding uses the protosol release pinned in `scripts/PROTOSOL_VERSION`; bump it when regenerating fixtures for a new protosol version.
+
 # External links
 
 [solfuzz](https://github.com/firedancer-io/solfuzz)
