@@ -1,10 +1,14 @@
-# Publish the fixture directories as release tarballs on every push to main.
+# Publish the fixture directories as release tarballs on every push to main
+# and to stable release branches (vX.Y).
 #
 # Each push creates a GitHub release tagged with the first 8 characters of the
 # commit SHA, so a consumer that pins a test-vectors commit can download
-# fixtures directly:
+# fixtures directly, whichever branch the commit is on:
 #
 #   https://github.com/firedancer-io/test-vectors/releases/download/<sha[0:8]>/<dir>.tar.gz
+#
+# Releases from a stable branch are titled "[vX.Y] <subject>" and are never
+# marked as the latest release; that is reserved for the head of main.
 #
 # Archives are built by scripts/package.sh. The release notes carry the
 # SHA-256 of every archive, and a SHA256SUMS asset is attached alongside them.
@@ -13,7 +17,7 @@ name: release
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'v[0-9]+.[0-9]+']
 
 permissions:
   contents: write
@@ -54,7 +58,18 @@ jobs:
         run: |
           tag="${GITHUB_SHA::8}"
           subject="${HEAD_COMMIT_MESSAGE%%$'\n'*}"
+          title="${subject:-$tag}"
+          latest=false
+          if [[ $GITHUB_REF_NAME == main ]]; then
+            # Runs are not serialized, so only claim "latest" if no newer
+            # commit has landed on main while this one was packaging.
+            head=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+            [[ $head == "$GITHUB_SHA" ]] && latest=true
+          else
+            title="[$GITHUB_REF_NAME] $title"
+          fi
           gh release create "$tag" out/*.tar.gz out/SHA256SUMS \
             --target "$GITHUB_SHA" \
-            --title "${subject:-$tag}" \
-            --notes-file notes.md
+            --title "$title" \
+            --notes-file notes.md \
+            --latest="$latest"
